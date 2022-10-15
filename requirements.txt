@@ -5,7 +5,6 @@ sklearn
 nltk
 spacy
 seaborn
---import nltk
---nltk.download('wordnet')
---!python -m spacy download en_core_web_lg
---!python -m spacy download en_core_web_sm
+pymongo
+pymongo[srv]
+

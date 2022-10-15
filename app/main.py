@@ -1,60 +1,48 @@
-from abc import ABC, abstractmethod
+import pymongo
+from random import randrange
+from pymongo import MongoClient
+import pandas as pd
+import load
+import nltk
+from core import runprocess
+import pandas as pd
 from model import loadmodel
 from transform import loadtransform
-import transform
-from sklearn.feature_extraction import _stop_words as stop_words
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer 
-import string
-import spacy
-nlp = spacy.load('en_core_web_sm')
+from config import modelConfig
 
-stopwords = stop_words.ENGLISH_STOP_WORDS
-lemmatizer = WordNetLemmatizer()
+CONNECTION_STRING = modelConfig.connection 
+#read pickel
+   # Create a connection using MongoClient. You can import MongoClient or use pymongo.MongoClient
+client = MongoClient(CONNECTION_STRING)
 
-class process(ABC):
-    def __init__(
-        self,
-        model: loadmodel,
-        transform: loadtransform
-        ):
+def read_data():
+   # database
+   db = client['ml']
+   #Collection
+   col = db['mlai']
+   x = col.find()
+   data = pd.DataFrame(list(x))
+   data = data.head()
+   result = runprocess(loadmodel,loadtransform).process_final(data) #Prediction on the model
+    #print ({ "_id": data['_id'], "pred_result": result})
+   data['preds'] = result
+   print (data)
+   #data_op = data[['_id','preds']].to_dict('records')
 
-        self.model = model
-        self.transform = transform
+   return data[['_unit_id','preds']].to_dict('records')
 
-class runprocess(process):
-    def clean(self, doc):
-        print ('1 .. Cleaning Started')
-        text_no_namedentities = []
-        document = nlp(doc)
-        ents = [e.text for e in document.ents]
-        for item in document:
-            if item.text in ents:
-                pass
-            else:
-                text_no_namedentities.append(item.text)
-        doc = (" ".join(text_no_namedentities))
 
-        doc = doc.lower().strip()
-        doc = doc.replace("</br>", " ") 
-        doc = doc.replace("-", " ") 
-        doc = "".join([char for char in doc if char not in string.punctuation and not char.isdigit()])
-        doc = " ".join([token for token in doc.split() if token not in stopwords])    
-        doc = "".join([lemmatizer.lemmatize(word) for word in doc])
+def load_data(df):
+    db = client['ml']
+    mycol = db['mlai_op_test2']
+    x = mycol.insert_many(df)
+    return x
 
-        return doc
+  
+# This is added so that many files can reuse the function get_database()
+if __name__ == "__main__":   
+  
+   # Read the database
+    df = read_data()
     
-    def create_transformation(self, data):
-        print ('2. Transformation Started')
-        data['text'] = data['text'].apply(self.clean)
-        self._doc = data
-        self.docs = list(self._doc['text'])
-        self._text_transform = self.transform(self.docs).vectorize()
-
-    
-    def process_final(self, data):
-        self.create_transformation(data)
-
-        return self.model().predict(self._text_transform)
-
-
+    x = load_data(df)
